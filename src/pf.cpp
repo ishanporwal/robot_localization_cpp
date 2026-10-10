@@ -5,6 +5,8 @@
 #include <rclcpp/time.hpp>
 #include <string>
 #include <tuple>
+#include <random>
+#include <cstdint>
 
 #include "angle_helpers.hpp"
 #include "builtin_interfaces/msg/time.hpp"
@@ -53,7 +55,7 @@ ParticleFilter::ParticleFilter() : Node("pf")
   a_thresh =
       M_PI / 6; // the amount of angular movement before performing an update
 
-  // TODO: define additional constants if needed
+  // TODO: define additional constants if needed (***)
 
   // pose_listener responds to selection of a new approximate robot
   // location (for instance using rviz)
@@ -163,10 +165,9 @@ void ParticleFilter::run_loop()
 
 bool ParticleFilter::moved_far_enough_to_update(std::vector<float> new_odom_xy_theta)
 {
-  return abs(new_odom_xy_theta[0] - current_odom_xy_theta[0] > d_thresh ||
-             abs(new_odom_xy_theta[1] - current_odom_xy_theta[1]) >
-                 d_thresh ||
-             abs(new_odom_xy_theta[2] - current_odom_xy_theta[2]) > a_thresh);
+  return abs(new_odom_xy_theta[0] - current_odom_xy_theta[0]) > d_thresh || // Changed location of ")" 
+             abs(new_odom_xy_theta[1] - current_odom_xy_theta[1]) > d_thresh ||
+             abs(new_odom_xy_theta[2] - current_odom_xy_theta[2]) > a_thresh;
 }
 
 void ParticleFilter::update_robot_pose()
@@ -216,6 +217,21 @@ void ParticleFilter::resample_particles()
   // make sure the distribution is normalized
   normalize_particles();
   // TODO: fill out the rest of the implementation
+  std::vector<int> idxes(n_particles);
+  for (int i = 0; i < n_particles; ++i) {
+    idxes.push_back(i);
+  }
+  std::vector<float> weights(n_particles);
+  for (int i = 0; i < n_particles; ++i) {
+    auto weight = particle_cloud[i].w;
+    weights.push_back(weight);
+  }
+  // std::vector<unsigned int> selected_idxes = draw_random_sample(idxes, weights, n_particles)
+  /*
+  get result of draw random sample
+  use resulting indices to reconstruct new particle cloud
+  reassign new particle cloud to existing particle cloud
+  */
 }
 
 void ParticleFilter::update_particles_with_laser(std::vector<float> r,
@@ -239,15 +255,47 @@ void ParticleFilter::initialize_particle_cloud(
   {
     xy_theta = transform_helper_->convert_pose_to_xy_theta(odom_pose.value());
   }
-  // TODO: create particles
+  // this means we have an initial pose
+    // ensure particle_cloud vector is reset (empty)
+  particle_cloud.clear();
+  // create a random number generator
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  // define a gaussian distribution
+  std::normal_distribution<float> position_noise(0.0f, 0.1f);
 
+  // loop till we hit n particles
+  for (int i = 0; i < n_particles; ++i) {
+    // create a particle
+    Particle p;
+    // multiply particle x by randomized value
+    p.x = xy_theta.value()[0] + position_noise(gen);
+    // mulitply particle y by randomized values
+    p.y = xy_theta.value()[1] + position_noise(gen);
+    // somehow scale theta by randomized value
+    p.theta = transform_helper_->angle_normalize(xy_theta.value()[2] + position_noise(gen));
+    // intiialize particle weight
+    p.w = 1.0f;
+    // append to particle cloud vector
+    particle_cloud.push_back(p);
+  }
   normalize_particles();
   update_robot_pose();
 }
 
 void ParticleFilter::normalize_particles()
 {
-  // TODO: implement this
+  float tot = 0.0f;
+  for (const auto& p : particle_cloud) {
+    tot += p.w;
+  }
+  // Handle zero total weight
+  if (tot <= 0.0f) {
+    return;
+  }
+  for (auto& p : particle_cloud) {
+    p.w = p.w / tot;
+  }
 }
 
 void ParticleFilter::publish_particles(rclcpp::Time timestamp)
