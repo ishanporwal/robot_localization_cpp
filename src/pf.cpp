@@ -313,13 +313,11 @@ void ParticleFilter::resample_particles()
 }
 
 void ParticleFilter::update_particles_with_laser(std::vector<float> r,
-                                                 std::vector<float> theta)
+                                                std::vector<float> theta)
 {
-  // TODO: implement this
-
   // 1) Prepare the LiDAR measurements
 
-    // If no valid LiDAR measurements remain, skip the laser update
+  // If no valid LiDAR measurements remain, skip the laser update
   if (r.empty() || theta.empty()) {
       return;
   }
@@ -329,54 +327,76 @@ void ParticleFilter::update_particles_with_laser(std::vector<float> r,
       return;
   }
 
-  // Create vectors to store only valid measurements
-  std::vector<float> valid_r;
-  std::vector<float> valid_theta;
+  // Ensure LiDAR index 8 exists
+  if (r.size() <= 8 || particle_cloud.empty()) {
+      return;
+  }
 
-  // Loop through the original LiDAR measurements
-  for (size_t i = 0; i < r.size(); ++i) {
+  // Select the LiDAR measurement at index 8
+  float distance = r[8];
+  float angle = theta[8];
 
-      // Skip invalid distances or angles
-      if (!std::isfinite(r[i]) ||
-          !std::isfinite(theta[i]) ||
-          r[i] <= 0.0f) {
-          continue;
+  // Skip invalid measurements
+  if (!std::isfinite(distance) ||
+      !std::isfinite(angle) ||
+      distance <= 0.0f) {
+      return;
+  }
+
+  // 2) Loop through every particle
+  for (auto& p : particle_cloud) {
+
+      // 2.1 Get the particle's hypothesized robot pose
+      float x_pose = p.x;
+      float y_pose = p.y;
+      float theta_pose = p.theta;
+
+      // 2.2 Combine the LiDAR angle with particle orientation
+      float lidar_angle = angle + theta_pose;
+
+      // 2.3 Calculate projected obstacle coordinates
+      float x_hit = x_pose + distance * std::cos(lidar_angle);
+      float y_hit = y_pose + distance * std::sin(lidar_angle);
+
+      // 2.4 Find distance to nearest mapped obstacle
+      double obstacle_distance =
+          occupancy_field->get_closest_obstacle_distance(x_hit, y_hit);
+
+      // 2.5 Calculate likelihood
+      double sigma = 0.2;
+      double likelihood = 0.0;
+
+      if (std::isfinite(obstacle_distance)) {
+          likelihood = std::exp(
+              -0.5 * std::pow(obstacle_distance / sigma, 2)
+          );
       }
 
-      // Add the valid distance and its corresponding angle
-      valid_r.push_back(r[i]);
-      valid_theta.push_back(theta[i]);
+      // 2.6 Update the particle's weight
+      p.w = likelihood;
   }
 
-  // 2) Loop through every particle in particle_cloud
-  for (auto& p : particle_cloud) {
-    // 2.1 Get the particle's hypothesized robot pose (x, y, theta)
-    float x_pose = p.x;
-    float y_pose = p.y;
-    float theta_pose = p.theta;
-    // 2.2 Initialize a variable to accumulate how well the LiDAR measurements match the map
-    float accumulation_factor; 
-  
-    // 2.3 Loop through every selected LiDAR measurement
-    for (size_t i = 0; i < valid_r.size(); ++i) {
-       // 2.3.1 Get the measurement's angle and corresponding distance
-      float distance = valid_r[i];
-      float angle = valid_theta[i];
-       // 2.3.2 Combine the LiDAR angle with the particle's orientation
-      float lidar_angle = angle + theta_pose;
-      // 2.3.3 Calculate the detected obstacle point's X and Y coordinates in the map frame
-      float x_hit = x_pose + distance * cos(lidar_angle);
-      float y_hit = y_pose + distance * sin(lidar_angle);
-      // 2.3.4 Look up how far this projected point is from the nearest mapped obstacle
-      double obstacle_distance = occupancy_field->get_closest_obstacle_distance(x_hit, y_hit);
-      // 2.3.5 Calculate a likelihood based on that distance (closer to a mapped obstacle = higher likelihood)
-      // 2.3.6 Accumulate this measurement's likelihood into the particle's overall score
-      // 2.4 Combine the measurement scores into one overall likelihood for this particle
-    }
-    // 2.5 Update the particle's weight using its overall likelihood
-    }
-    // 3) Normalize all particle weights so they sum to 1
+  // 3) Normalize all particle weights
+  double total_weight = 0.0;
+
+  for (const auto& p : particle_cloud) {
+      total_weight += p.w;
   }
+
+  if (total_weight > 0.0 && std::isfinite(total_weight)) {
+      for (auto& p : particle_cloud) {
+          p.w /= total_weight;
+      }
+  } else {
+      // Reset to uniform weights if all weights become zero
+      double uniform_weight = 1.0 / particle_cloud.size();
+
+      for (auto& p : particle_cloud) {
+          p.w = uniform_weight;
+      }
+  }
+}
+
 
 void ParticleFilter::update_initial_pose(geometry_msgs::msg::PoseWithCovarianceStamped msg)
 {
