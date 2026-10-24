@@ -85,7 +85,7 @@ The following demo shows the Gazebo world on the left and the RViz localization 
   <img src="media/localization_in_motion.png" alt="Particle filter running in Gazebo and RViz" width="600">
 </p>
 
-[Watch the full particle filter demo (MP4)](media/particle_filter_demo.mp4)
+[Watch the full particle filter demo (MP4)](https://drive.google.com/file/d/12db7bPWx26B3tVvi1y975RRHBMDOcHI3/view?usp=sharing)
 *Screenshot from the recorded demo, showing the simulated environment and the localization display.*
 
 The demo shows that the ROS pipeline is running and the filter is publishing particles as the robot moves. However, some laser returns do not line up perfectly with the mapped walls and obstacles, and the particle distribution can shift as the robot moves. We therefore treat these runs as evidence of a functioning implementation and useful debugging data. 
