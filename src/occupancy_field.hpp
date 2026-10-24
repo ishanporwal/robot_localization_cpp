@@ -23,6 +23,7 @@ public:
   Matrix occupied_coordinates;
 
   OccupancyField(std::shared_ptr<rclcpp::Node> node);
+  OccupancyField() = default;
 
   /**
    * Returns: the upper and lower bounds of x and y such that the resultant

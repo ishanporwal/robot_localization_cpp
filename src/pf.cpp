@@ -99,7 +99,7 @@ void ParticleFilter::pub_latest_transform()
     rclcpp::Time last_scan_time(last_scan_timestamp.value());
     rclcpp::Duration offset(0, 100000000);
     auto postdated_timestamp = last_scan_time + offset;
-    transform_helper_->send_last_map_to_odom_transform(map_frame, odom_frame,
+    transform_helper_->send_last_map_to_odom_transform(odom_frame, map_frame,
                                                        postdated_timestamp);
   }
 }
@@ -165,9 +165,12 @@ void ParticleFilter::run_loop()
 
 bool ParticleFilter::moved_far_enough_to_update(std::vector<float> new_odom_xy_theta)
 {
-  return abs(new_odom_xy_theta[0] - current_odom_xy_theta[0]) > d_thresh || // Changed location of ")" 
-             abs(new_odom_xy_theta[1] - current_odom_xy_theta[1]) > d_thresh ||
-             abs(new_odom_xy_theta[2] - current_odom_xy_theta[2]) > a_thresh;
+  float delta_theta = transform_helper_->angle_normalize(
+      new_odom_xy_theta[2] - current_odom_xy_theta[2]);
+
+  return abs(new_odom_xy_theta[0] - current_odom_xy_theta[0]) > d_thresh ||
+         abs(new_odom_xy_theta[1] - current_odom_xy_theta[1]) > d_thresh ||
+         abs(delta_theta) > a_thresh;
 }
 
 void ParticleFilter::update_robot_pose()
@@ -294,7 +297,7 @@ void ParticleFilter::resample_particles()
   normalize_particles();
   std::vector<unsigned int> idxes;
   idxes.reserve(n_particles);
-  for (unsigned int i = 0; i < n_particles; ++i) {
+  for (int i = 0; i < n_particles; ++i) {
     idxes.push_back(i);
   }
   std::vector<float> weights;
@@ -460,7 +463,7 @@ void ParticleFilter::publish_particles(rclcpp::Time timestamp)
   msg.header.stamp = timestamp;
   msg.header.frame_id = map_frame;
 
-  for (unsigned int i = 0; i < particle_cloud.size(); i++)
+  for (std::size_t i = 0; i < particle_cloud.size(); i++)
   {
     nav2_msgs::msg::Particle converted;
     converted.weight = particle_cloud[i].w;
@@ -495,6 +498,8 @@ void ParticleFilter::setup_helpers(std::shared_ptr<ParticleFilter> nodePtr)
   std::cout << "done generating TFHelper" << std::endl;
 }
 
+#ifndef PARTICLE_FILTER_UNIT_TEST
+
 int main(int argc, char **argv)
 {
   // this is useful to give time for the map server to get ready...
@@ -509,3 +514,4 @@ int main(int argc, char **argv)
   rclcpp::shutdown();
   return 0;
 }
+#endif

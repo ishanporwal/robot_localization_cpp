@@ -12,7 +12,7 @@
 #include "angle_helpers.hpp"
 #include "builtin_interfaces/msg/time.hpp"
 #include "geometry_msgs/msg/pose.hpp"
-#include "nav2_msgs/msg/particle_cloud.h"
+#include "nav2_msgs/msg/particle_cloud.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "geometry_msgs/msg/quaternion.hpp"
 #include "helper_functions.hpp"
@@ -84,6 +84,7 @@ public:
  [x,y,theta] (where theta is the yaw) thread: this thread runs your main loop
 */
 class ParticleFilter : public rclcpp::Node {
+  friend class ParticleFilterTest;
 public:
   ParticleFilter();
 

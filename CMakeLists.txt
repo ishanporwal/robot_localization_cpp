@@ -37,6 +37,38 @@ install(DIRECTORY launch
 )
 
 if(BUILD_TESTING)
+    
+  find_package(ament_cmake_gtest REQUIRED)
+  find_package(nav_msgs REQUIRED)
+
+  ament_add_gtest(test_pf
+    test/test_pf.cpp
+    src/pf.cpp
+    src/helper_functions.cpp
+    src/occupancy_field.cpp
+    src/angle_helpers.cpp
+  )
+
+  if(TARGET test_pf)
+    target_compile_definitions(test_pf
+      PRIVATE PARTICLE_FILTER_UNIT_TEST
+    )
+
+    target_include_directories(test_pf PRIVATE src)
+
+    ament_target_dependencies(test_pf
+      rclcpp
+      geometry_msgs
+      sensor_msgs
+      nav2_msgs
+      nav_msgs
+      tf2_ros
+      tf2
+    )
+
+    target_link_libraries(test_pf Eigen3::Eigen)
+  endif()
+
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights
   # comment the line when a copyright and license is added to all source files
