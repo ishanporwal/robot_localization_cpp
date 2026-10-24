@@ -165,7 +165,7 @@ void ParticleFilter::run_loop()
 
 bool ParticleFilter::moved_far_enough_to_update(std::vector<float> new_odom_xy_theta)
 {
-  float delta_theta = transform_helper_->angle_normalize(
+  float delta_theta = transform_helper_->angle_normalize( // THIS WAS NOR NORMALIZED IN PROVIDED CODE
       new_odom_xy_theta[2] - current_odom_xy_theta[2]);
 
   return abs(new_odom_xy_theta[0] - current_odom_xy_theta[0]) > d_thresh ||
@@ -173,8 +173,16 @@ bool ParticleFilter::moved_far_enough_to_update(std::vector<float> new_odom_xy_t
          abs(delta_theta) > a_thresh;
 }
 
-void ParticleFilter::update_robot_pose()
-{
+/**
+ * Computes the neato's filtered pose from the current particle cloud.
+ *
+ * Particle weights normalized before pose estimate is computed. The
+ * weighted average of the particle positions is used for x/y, while the
+ * theta is estimated from the circular mean of the particle orientations.
+ * Then, the resulting pose is used to update the map-to-odom transform when
+ * an odometry pose is available.
+ */
+void ParticleFilter::update_robot_pose(){
   // first make sure that the particle weights are normalized
   normalize_particles();
 
@@ -221,8 +229,17 @@ void ParticleFilter::update_robot_pose()
   }
 }
 
-void ParticleFilter::update_particles_with_odom()
-{
+/**
+ * Updates each particle according to the robot's odometry update.
+ *
+ * The change in odometry pose since the last update is converted into the neato's
+ * previous local frame, then applied to each particle in the map frame. This
+ * keeps the particle cloud aligned with the neato's motion while also accounting
+ * for uncertainty. Gaussian noise is added to the particle position and
+ * heading to model drift before the latest odometry pose is stored for
+ * the next update cycle.
+ */
+void ParticleFilter::update_particles_with_odom(){
   auto new_odom_xy_theta =
       transform_helper_->convert_pose_to_xy_theta(odom_pose.value());
 
@@ -291,8 +308,16 @@ for (auto& p : particle_cloud) {
 current_odom_xy_theta = new_odom_xy_theta;
   }
 
-void ParticleFilter::resample_particles()
-{
+/**
+ * Resamples the particle cloud based on the current particle weights.
+ *
+ * Particles are selected and replaced using their normalized weights. Then,
+ * the particle cloud is rebuilt from the selected particles. The resampled
+ * particles are assigned equal weights so the filter can keep on tracking the
+ * most likely regions of the distribution while getting rid of low-weight
+ * particles.
+ */
+void ParticleFilter::resample_particles(){
   // make sure the distribution is normalized
   normalize_particles();
   std::vector<unsigned int> idxes;
@@ -315,9 +340,17 @@ void ParticleFilter::resample_particles()
   particle_cloud = new_particle_cloud;
 }
 
-void ParticleFilter::update_particles_with_laser(std::vector<float> r,
-                                                std::vector<float> theta)
-{
+/**
+ * Updates particle weights using the current LiDAR scan.
+ *
+ * For each particle, the LiDAR measurement is transformed into the particle's
+ * possible map-frame pose, and the distance to the nearest known obstacle is
+ * computed. A Gaussian-like likelihood is then used to score how well the
+ * particle explains the observed scan. After all particles have been scored,
+ * the weights are normalized so the cloud stays a valid probability
+ * distribution.
+ */
+void ParticleFilter::update_particles_with_laser(std::vector<float> r, std::vector<float> theta){
   // 1) Prepare the LiDAR measurements
 
   // If no valid LiDAR measurements remain, skip the laser update
